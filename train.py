@@ -8,6 +8,7 @@ import datetime
 import editdistance
 import scipy.signal
 import numpy as np 
+import gc
 
 # torch 관련
 import torch
@@ -32,7 +33,8 @@ def train(model, train_loader, optimizer, criterion, device):
         optimizer.zero_grad()
 
         inputs, targets = data
-
+       # print(inputs.shape,inputs.type)
+        
         inputs = inputs.to(device) # (batch_size, time, freq)
         targets = targets.type(torch.FloatTensor)
         targets = targets.to(device)
@@ -93,6 +95,8 @@ def evaluation(model, val_loader, device):
 
 def main():
 
+    torch.cuda.empty_cache() #캐시 데이터 삭제 
+
     with open("./train.txt", "w") as f:
        
         f.write('\n')
@@ -107,13 +111,14 @@ def main():
     random.seed(config.data.seed)
     torch.manual_seed(config.data.seed)
     torch.cuda.manual_seed_all(config.data.seed)
-
+    
     cuda = torch.cuda.is_available()
     device = torch.device('cuda' if cuda else 'cpu')
-    
+ 
+   
     #-------------------------- Model Initialize --------------------------   
     las_model = Resnet().to(device)
-    las_model.load_state_dict(torch.load("/home/jhjeong/jiho_deep/dacon/MNIST_2/plz_load/model_end.pth"))
+   # las_model.load_state_dict(torch.load("./plz_load/model_end_1st100.pth"))
     las_model = nn.DataParallel(las_model).to(device)
     #-------------------------- Loss Initialize ---------------------------
     las_criterion = nn.BCELoss()
@@ -123,18 +128,18 @@ def main():
     las_optimizer = optim.Adam(las_model.module.parameters(), 
                                 lr=config.optim.lr,
                                 weight_decay=1e-6)
-    scheduler = optim.lr_scheduler.MultiStepLR(las_optimizer, milestones=[30,80], gamma=0.5)
+    scheduler = optim.lr_scheduler.MultiStepLR(las_optimizer, milestones=[20,70], gamma=0.5)
     #-------------------------- Data load ---------------------------------
     #train dataset
     train_dataset = SpectrogramDataset("./data/train.csv",
                                        feature_type="config.audio_data.type", 
                                        normalize=True, 
-                                       spec_augment=False)
+                                       spec_augment=True)
 
     train_loader = AudioDataLoader(dataset=train_dataset,
                                     shuffle=True,
                                     num_workers=config.data.num_workers,
-                                    batch_size=80,
+                                    batch_size=64,
                                     drop_last=True)
     
     #val dataset
@@ -171,7 +176,7 @@ def main():
         eval_total_time = time.time() - eval_time
         print('{} Epoch {} (val) ACC {:.4f}, time: {:.2f}'.format(datetime.datetime.now(), epoch+1, val_acc, eval_total_time))
         
-        #scheduler.step()
+        scheduler.step()
         
         with open("./train.txt", "a") as ff:
             ff.write('Epoch %d (Training) Loss %0.4f Acc %0.4f time %0.4f' % (epoch+1, train_loss, train_acc, train_total_time))
@@ -185,9 +190,7 @@ def main():
             torch.save(las_model.module.state_dict(), "./plz_load/model.pth")
             pre_acc = val_acc
 
-        torch.save(las_model.module.state_dict(), "./plz_load/model_end.pth")
-        
-                
+        torch.save(las_model.module.state_dict(), "./plz_load/model_end.pth")             
 
 if __name__ == '__main__':
     main()

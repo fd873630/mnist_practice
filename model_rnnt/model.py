@@ -120,18 +120,20 @@ class Resnet(nn.Module):
         self.dropout_2d2 = nn.Dropout2d(p=0.3)
         self.dropout_2d3 = nn.Dropout2d(p=0.3)
         self.dropout_2d4 = nn.Dropout2d(p=0.3)
-
+       
+       # inputSize = 512 # upscaled size : original size = 256
+       # inSize = inputSize*256 # 131072
         self.linear = nn.Sequential(
-            nn.Linear(32768, 128),
-            nn.BatchNorm1d(128)
+            nn.Linear(131072, 256),
+            nn.BatchNorm1d(256)
         )
 
         self.linear1 = nn.Sequential(
-            nn.Linear(128, 128),
-            nn.BatchNorm1d(128)
+            nn.Linear(256, 256),
+            nn.BatchNorm1d(256)
         )
 
-        self.projection = nn.Linear(128, 26)
+        self.projection = nn.Linear(256, 26)
         
         self.sigmoid = nn.Sigmoid()
 
@@ -212,6 +214,7 @@ class Resnet(nn.Module):
 
         x = torch.flatten(x, 1)
         
+       # print("flattend shape :",x.shape)       
         #sixth
         x = self.linear(x)
         x_res = x
